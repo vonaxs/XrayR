@@ -5,13 +5,13 @@ import (
 	"sync/atomic"
 )
 
-// 单个用户的上下行流量统计
+// 单个用户的上下行流量
 type Counter struct {
 	UpCounter   XrayTrafficCounter
 	DownCounter XrayTrafficCounter
 }
 
-// 用来管理所有用户的计数器
+// 管理所有用户
 type Manager struct {
 	counters sync.Map // key: email(string), value: *Counter
 }
@@ -26,8 +26,8 @@ func (m *Manager) GetCounter(email string) *Counter {
 		return val.(*Counter)
 	}
 	c := &Counter{
-		UpCounter:   XrayTrafficCounter{bytes: &atomic.Int64{}},
-		DownCounter: XrayTrafficCounter{bytes: &atomic.Int64{}},
+		UpCounter:   XrayTrafficCounter{V: &atomic.Int64{}},
+		DownCounter: XrayTrafficCounter{V: &atomic.Int64{}},
 	}
 	m.counters.Store(email, c)
 	return c
