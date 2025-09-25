@@ -31,6 +31,7 @@ require (
 	golang.org/x/time v0.7.0
 	google.golang.org/protobuf v1.36.5
 )
+replace github.com/XrayR-project/XrayR => /root/XrayR
 
 require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
