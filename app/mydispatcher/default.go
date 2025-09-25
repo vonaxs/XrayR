@@ -170,13 +170,13 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 		// uplink
 		inboundLink.Writer = &SizeStatWriter{
 			Writer:  inboundLink.Writer,
-			Counter: &ts.UpCounter,
+			Counter: ts.UpCounter,
 		}
 
 		// downlink
 		outboundLink.Writer = &SizeStatWriter{
 			Writer:  outboundLink.Writer,
-			Counter: &ts.DownCounter,
+			Counter: ts.DownCounter,
 		}
 	}
 
