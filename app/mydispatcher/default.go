@@ -298,14 +298,14 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 
 		// uplink
 		outbound.Reader = &CounterReader{
-			Reader:  outbound.Reader,  // 直接用现有 reader
-			Counter: ts.UpCounter,
+			Reader:  outbound.Reader,
+			Counter: ts.UpCounter,   // ✅ 去掉 &，直接传指针
 		}
 
 		// downlink
 		outbound.Writer = &SizeStatWriter{
 			Writer:  outbound.Writer,
-			Counter: ts.DownCounter,
+			Counter: ts.DownCounter, // ✅ 去掉 &
 		}
 	}
 
