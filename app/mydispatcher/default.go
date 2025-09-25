@@ -163,6 +163,8 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 	sessionInbound := session.InboundFromContext(ctx)
 	var user *protocol.MemoryUser
 	if sessionInbound != nil {
+		// 禁用 splice，避免 Vision 绕过统计
+		sessionInbound.CanSpliceCopy = 3
 		user = sessionInbound.User
 	}
 
