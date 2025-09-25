@@ -4,7 +4,6 @@ package mydispatcher
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -300,13 +299,13 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 		// uplink
 		outbound.Reader = &CounterReader{
 			Reader:  outbound.Reader,  // 直接用现有 reader
-			Counter: &ts.UpCounter,
+			Counter: ts.UpCounter,
 		}
 
 		// downlink
 		outbound.Writer = &SizeStatWriter{
 			Writer:  outbound.Writer,
-			Counter: &ts.DownCounter,
+			Counter: ts.DownCounter,
 		}
 	}
 
@@ -344,7 +343,7 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 // 统计 reader（uplink）
 type CounterReader struct {
     Reader  buf.Reader
-    Counter *XrayTrafficCounter
+    Counter *counter.XrayTrafficCounter
 }
 
 func (r *CounterReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
@@ -432,9 +431,6 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 
 	var handler outbound.Handler
 
-	// Check if domain and protocol hit the rule
-	sessionInbound := session.InboundFromContext(ctx)
-	// Whether the inbound connection contains a user
 
 
 	routingLink := routingSession.AsRoutingContext(ctx)
