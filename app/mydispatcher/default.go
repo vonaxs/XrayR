@@ -357,7 +357,7 @@ func (r *CounterReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
 // 统计 writer（downlink）
 type SizeStatWriter struct {
     Writer  buf.Writer
-    Counter stats.Counter
+    Counter *counter.XrayTrafficCounter
 }
 
 func (w *SizeStatWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
