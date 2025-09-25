@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/vonaxs/XrayR/common/counter"
 	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/buf"
 	"github.com/xtls/xray-core/common/errors"
@@ -93,14 +94,14 @@ func (r *cachedReader) Interrupt() {
 
 // DefaultDispatcher is a default implementation of Dispatcher.
 type DefaultDispatcher struct {
-	ohm         outbound.Manager
-	router      routing.Router
-	policy      policy.Manager
-	stats       stats.Manager
-	dns         dns.Client
-	fdns        dns.FakeDNSEngine
-	Limiter     *limiter.Limiter
-	RuleManager *rule.Manager
+    ohm     outbound.Manager
+    router  routing.Router
+    policy  policy.Manager
+    stats   stats.Manager
+    dns     dns.Client
+    fdns    dns.FakeDNSEngine
+
+    Counter *counter.Manager   // ✅ 新增，管理用户流量统计
 }
 
 func init() {
@@ -120,14 +121,13 @@ func init() {
 
 // Init initializes DefaultDispatcher.
 func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router routing.Router, pm policy.Manager, sm stats.Manager, dns dns.Client) error {
-	d.ohm = om
-	d.router = router
-	d.policy = pm
-	d.stats = sm
-	d.Limiter = limiter.New()
-	d.RuleManager = rule.New()
-	d.dns = dns
-	return nil
+    d.ohm = om
+    d.router = router
+    d.policy = pm
+    d.stats = sm
+    d.dns = dns
+    d.Counter = counter.NewManager()   // ✅ 初始化计数器
+    return nil
 }
 
 // Type implements common.HasType.
@@ -163,45 +163,27 @@ func (d *DefaultDispatcher) getLink(ctx context.Context) (*transport.Link, *tran
 	sessionInbound := session.InboundFromContext(ctx)
 	var user *protocol.MemoryUser
 	if sessionInbound != nil {
+		// ✅ 强制关闭 splice，避免 Vision 模式绕过统计
+		sessionInbound.CanSpliceCopy = 3
 		user = sessionInbound.User
 	}
 
 	if user != nil && len(user.Email) > 0 {
-		// Speed Limit and Device Limit
-		bucket, ok, reject := d.Limiter.GetUserBucket(sessionInbound.Tag, user.Email, sessionInbound.Source.Address.IP().String())
-		if reject {
-			errors.LogWarning(ctx, "Devices reach the limit: ", user.Email)
-			common.Close(outboundLink.Writer)
-			common.Close(inboundLink.Writer)
-			common.Interrupt(outboundLink.Reader)
-			common.Interrupt(inboundLink.Reader)
-			return nil, nil, newError("Devices reach the limit: ", user.Email)
-		}
-		if ok {
-			inboundLink.Writer = d.Limiter.RateWriter(inboundLink.Writer, bucket)
-			outboundLink.Writer = d.Limiter.RateWriter(outboundLink.Writer, bucket)
+		ts := d.Counter.GetCounter(user.Email)
+
+		// uplink
+		inboundLink.Writer = &SizeStatWriter{
+			Writer:  inboundLink.Writer,
+			Counter: &ts.UpCounter,
 		}
 
-		p := d.policy.ForLevel(user.Level)
-		if p.Stats.UserUplink {
-			name := "user>>>" + user.Email + ">>>traffic>>>uplink"
-			if c, _ := stats.GetOrRegisterCounter(d.stats, name); c != nil {
-				inboundLink.Writer = &SizeStatWriter{
-					Counter: c,
-					Writer:  inboundLink.Writer,
-				}
-			}
-		}
-		if p.Stats.UserDownlink {
-			name := "user>>>" + user.Email + ">>>traffic>>>downlink"
-			if c, _ := stats.GetOrRegisterCounter(d.stats, name); c != nil {
-				outboundLink.Writer = &SizeStatWriter{
-					Counter: c,
-					Writer:  outboundLink.Writer,
-				}
-			}
+		// downlink
+		outboundLink.Writer = &SizeStatWriter{
+			Writer:  outboundLink.Writer,
+			Counter: &ts.DownCounter,
 		}
 	}
+
 
 	return inboundLink, outboundLink, nil
 }
@@ -293,6 +275,7 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 	if !destination.IsValid() {
 		return newError("Dispatcher: Invalid destination.")
 	}
+
 	outbounds := session.OutboundsFromContext(ctx)
 	if len(outbounds) == 0 {
 		outbounds = []*session.Outbound{{}}
@@ -306,6 +289,31 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 		content = new(session.Content)
 		ctx = session.ContextWithContent(ctx, content)
 	}
+
+	// ✅ 新增：流量统计包装
+	sessionInbound := session.InboundFromContext(ctx)
+	var user *protocol.MemoryUser
+	if sessionInbound != nil {
+		sessionInbound.CanSpliceCopy = 3 // 禁用 splice，避免 Vision 下行绕过
+		user = sessionInbound.User
+	}
+	if user != nil && len(user.Email) > 0 {
+		ts := d.Counter.GetCounter(user.Email)
+
+		// uplink
+		outbound.Reader = &CounterReader{
+			Reader:  &buf.TimeoutWrapperReader{Reader: outbound.Reader},
+			Counter: &ts.UpCounter,
+		}
+
+		// downlink
+		outbound.Writer = &SizeStatWriter{
+			Writer:  outbound.Writer,
+			Counter: &ts.DownCounter,
+		}
+	}
+
+	// ✅ 保留原本 sniffing / routedDispatch 逻辑
 	sniffingRequest := content.SniffingRequest
 	if !sniffingRequest.Enabled {
 		go d.routedDispatch(ctx, outbound, destination)
@@ -334,6 +342,33 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 	}
 
 	return nil
+}
+
+// 统计 reader（uplink）
+type CounterReader struct {
+    Reader  buf.Reader
+    Counter *counter.Counter
+}
+
+func (r *CounterReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
+    mb, err := r.Reader.ReadMultiBuffer()
+    if !mb.IsEmpty() && r.Counter != nil {
+        r.Counter.Add(int64(mb.Len()))
+    }
+    return mb, err
+}
+
+// 统计 writer（downlink）
+type SizeStatWriter struct {
+    Writer  buf.Writer
+    Counter stats.Counter
+}
+
+func (w *SizeStatWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
+    if !mb.IsEmpty() && w.Counter != nil {
+        w.Counter.Add(int64(mb.Len()))
+    }
+    return w.Writer.WriteMultiBuffer(mb)
 }
 
 func sniffer(ctx context.Context, cReader *cachedReader, metadataOnly bool, network net.Network) (SniffResult, error) {
