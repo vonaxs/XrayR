@@ -25,6 +25,9 @@ import (
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/pipe"
+	
+    "github.com/XrayR-project/XrayR/common/limiter"
+    "github.com/XrayR-project/XrayR/common/rule"
 )
 
 var errSniffingTimeout = newError("timeout on sniffing")
@@ -97,7 +100,9 @@ type DefaultDispatcher struct {
     dns     dns.Client
     fdns    dns.FakeDNSEngine
 
-    Counter *counter.Manager   // ✅ 新增，管理用户流量统计
+    Limiter     limiter.Manager     // 原版字段
+    RuleManager rule.Manager        // 原版字段
+    Counter     *counter.Manager    // 你新增的
 }
 
 func init() {
@@ -122,7 +127,11 @@ func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router rou
     d.policy = pm
     d.stats = sm
     d.dns = dns
-    d.Counter = counter.NewManager()   // ✅ 初始化计数器
+
+    d.Limiter = limiter.Instance      // ✅ 原版逻辑
+    d.RuleManager = rule.Instance     // ✅ 原版逻辑
+    d.Counter = counter.NewManager()  // ✅ 新增逻辑
+
     return nil
 }
 
