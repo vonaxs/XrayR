@@ -7,8 +7,8 @@ import (
 
 // 单个用户的上下行流量
 type Counter struct {
-	UpCounter   XrayTrafficCounter
-	DownCounter XrayTrafficCounter
+    UpCounter   *XrayTrafficCounter
+    DownCounter *XrayTrafficCounter
 }
 
 // 管理所有用户
@@ -21,14 +21,14 @@ func NewManager() *Manager {
 }
 
 func (m *Manager) GetCounter(email string) *Counter {
-	val, ok := m.counters.Load(email)
-	if ok {
-		return val.(*Counter)
-	}
-	c := &Counter{
-		UpCounter:   XrayTrafficCounter{V: &atomic.Int64{}},
-		DownCounter: XrayTrafficCounter{V: &atomic.Int64{}},
-	}
-	m.counters.Store(email, c)
-	return c
+    val, ok := m.counters.Load(email)
+    if ok {
+        return val.(*Counter)
+    }
+    c := &Counter{
+        UpCounter:   &XrayTrafficCounter{V: &atomic.Int64{}},
+        DownCounter: &XrayTrafficCounter{V: &atomic.Int64{}},
+    }
+    m.counters.Store(email, c)
+    return c
 }
