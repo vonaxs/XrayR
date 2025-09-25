@@ -26,7 +26,6 @@ import (
 	"github.com/xtls/xray-core/features/stats"
 	"github.com/xtls/xray-core/transport"
 	"github.com/xtls/xray-core/transport/pipe"
-
 )
 
 var errSniffingTimeout = newError("timeout on sniffing")
@@ -300,7 +299,7 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 
 		// uplink
 		outbound.Reader = &CounterReader{
-			Reader:  &buf.TimeoutWrapperReader{Reader: outbound.Reader},
+			Reader:  outbound.Reader,  // 直接用现有 reader
 			Counter: &ts.UpCounter,
 		}
 
