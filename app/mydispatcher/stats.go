@@ -6,10 +6,6 @@ import (
 	"github.com/xtls/xray-core/features/stats"
 )
 
-type SizeStatWriter struct {
-	Counter stats.Counter
-	Writer  buf.Writer
-}
 
 func (w *SizeStatWriter) WriteMultiBuffer(mb buf.MultiBuffer) error {
 	w.Counter.Add(int64(mb.Len()))
