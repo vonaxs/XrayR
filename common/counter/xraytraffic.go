@@ -1,25 +1,34 @@
 package counter
 
 import (
+	"sync"
 	"sync/atomic"
-
-	fstats "github.com/xtls/xray-core/features/stats"
 )
 
-var _ fstats.Counter = (*XrayTrafficCounter)(nil)
-
-type XrayTrafficCounter struct {
-	V *atomic.Int64
+// 单个用户的上下行流量统计
+type Counter struct {
+	UpCounter   XrayTrafficCounter
+	DownCounter XrayTrafficCounter
 }
 
-func (c *XrayTrafficCounter) Value() int64 {
-	return c.V.Load()
+// 用来管理所有用户的计数器
+type Manager struct {
+	counters sync.Map // key: email(string), value: *Counter
 }
 
-func (c *XrayTrafficCounter) Set(newValue int64) int64 {
-	return c.V.Swap(newValue)
+func NewManager() *Manager {
+	return &Manager{}
 }
 
-func (c *XrayTrafficCounter) Add(delta int64) int64 {
-	return c.V.Add(delta)
+func (m *Manager) GetCounter(email string) *Counter {
+	val, ok := m.counters.Load(email)
+	if ok {
+		return val.(*Counter)
+	}
+	c := &Counter{
+		UpCounter:   XrayTrafficCounter{V: &atomic.Int64{}},
+		DownCounter: XrayTrafficCounter{V: &atomic.Int64{}},
+	}
+	m.counters.Store(email, c)
+	return c
 }
