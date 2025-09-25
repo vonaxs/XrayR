@@ -344,7 +344,7 @@ func (d *DefaultDispatcher) DispatchLink(ctx context.Context, destination net.De
 // 统计 reader（uplink）
 type CounterReader struct {
     Reader  buf.Reader
-    Counter *counter.Counter
+    Counter *XrayTrafficCounter
 }
 
 func (r *CounterReader) ReadMultiBuffer() (buf.MultiBuffer, error) {
@@ -435,15 +435,7 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 	// Check if domain and protocol hit the rule
 	sessionInbound := session.InboundFromContext(ctx)
 	// Whether the inbound connection contains a user
-	if sessionInbound.User != nil {
-		if d.RuleManager.Detect(sessionInbound.Tag, destination.String(), sessionInbound.User.Email) {
-			errors.LogError(ctx, fmt.Sprintf("User %s access %s reject by rule", sessionInbound.User.Email, destination.String()))
-			newError("destination is reject by rule")
-			common.Close(link.Writer)
-			common.Interrupt(link.Reader)
-			return
-		}
-	}
+
 
 	routingLink := routingSession.AsRoutingContext(ctx)
 	inTag := routingLink.GetInboundTag()
