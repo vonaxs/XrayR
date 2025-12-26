@@ -131,7 +131,7 @@ func run() error {
 	if err := config.ReadConfig(bytes.NewReader(yamlBytes)); err != nil {
 		return fmt.Errorf("load remote config failed: %s", err)
 	}
-	yamlBytes = nil // 显式释放原始字节数组
+	yamlBytes = nil 	// 显式释放原始字节数组
 
     //后续逻辑完全保持不变
 	panelConfig := &panel.Config{}
