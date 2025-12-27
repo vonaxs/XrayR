@@ -17,7 +17,6 @@ import (
 	"strconv"
     "io"
     "net"
-    "context"
 
 	log "github.com/sirupsen/logrus"
 
@@ -167,14 +166,14 @@ func fetchRemoteConfig(boot *BootstrapConfig) ([]byte, error) {
 	if !strings.HasPrefix(apiHost, "https://") {
 		return nil, fmt.Errorf("ApiHost must use HTTPS")
 	}
-
+	
 	// 获取公网 IPv4
-	nodeIPv4, err := getPublicIPv4(apiHost)
-	if err != nil {
-		log.Warnf("failed to detect public IPv4: %v", err)
-		nodeIPv4 = ""
+	nodeIPv4 := getPublicIP("https://ipv4.icanhazip.com")
+	if nodeIPv4 == "" {
+		log.Warnf("ipv4.icanhazip.com failed, try api.ipify.org")
+		nodeIPv4 = getPublicIP("https://api.ipify.org")
 	}
-
+	
 	// 构造 URL（必须用 net/url，IPv6 否则必炸）
 	u, err := url.Parse(strings.TrimRight(apiHost, "/") + "/api/getNodeConfig")
 	if err != nil {
@@ -231,56 +230,34 @@ func fetchRemoteConfig(boot *BootstrapConfig) ([]byte, error) {
 	return yamlBytes, nil
 }
 
-// 辅助函数：获取公共 IPv4 地址
-func getPublicIPv4(apiHost string) (string, error) {
-	// 构造 IPv4 探测 URL
-	ipv4URL := strings.TrimRight(apiHost, "/") + "/api/ip"
-
-	dialer := &net.Dialer{
+// 辅助函数：获取公共 IP 地址
+func getPublicIP(endpoint string) string {
+	client := &http.Client{
 		Timeout: 5 * time.Second,
 	}
 
-	transport := &http.Transport{
-		// 关键：强制使用 IPv4
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer.DialContext(ctx, "tcp4", addr)
-		},
-		TLSHandshakeTimeout: 5 * time.Second,
-		DisableKeepAlives:   true, 		// 启动阶段探测，避免连接复用干扰
-	}
-
-	client := &http.Client{
-		Timeout:   8 * time.Second,
-		Transport: transport,
-	}
-
-	req, err := http.NewRequest("GET", ipv4URL, nil)
+	resp, err := client.Get(endpoint)
 	if err != nil {
-		return "", err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("getPublicIPv4 request failed: %w", err)
+		log.Warnf("IP fetch failed %s: %v", endpoint, err)
+		return ""
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("getPublicIPv4 unexpected status: %s", resp.Status)
+		return ""
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return ""
 	}
 
 	ip := strings.TrimSpace(string(body))
-	parsed := net.ParseIP(ip)
-	if parsed == nil || parsed.To4() == nil {
-		return "", fmt.Errorf("getPublicIPv4 invalid IPv4 response: %q", ip)
+	if net.ParseIP(ip) == nil {
+		return ""
 	}
 
-	return ip, nil
+	return ip
 }
 
 func Execute() error {
