@@ -232,32 +232,38 @@ func fetchRemoteConfig(boot *BootstrapConfig) ([]byte, error) {
 
 // 辅助函数：获取公共 IP 地址
 func getPublicIP(endpoint string) string {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
+    client := &http.Client{
+        Timeout: 5 * time.Second,
+    }
 
-	resp, err := client.Get(endpoint)
-	if err != nil {
-		log.Warnf("IP fetch failed %s: %v", endpoint, err)
-		return ""
-	}
-	defer resp.Body.Close()
+    resp, err := client.Get(endpoint)
+    if err != nil {
+        return ""
+    }
+    defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return ""
-	}
+    if resp.StatusCode != http.StatusOK {
+        return ""
+    }
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ""
-	}
+    // 1. 限制读取长度，防止内存耗尽
+    limitReader := io.LimitReader(resp.Body, 64) 
+    body, err := io.ReadAll(limitReader)
+    if err != nil {
+        return ""
+    }
 
-	ip := strings.TrimSpace(string(body))
-	if net.ParseIP(ip) == nil {
-		return ""
-	}
+    // 2. 清洗数据（去除多余字符、换行等）
+    ipStr := strings.TrimSpace(string(body))
 
-	return ip
+    // 3. 严格验证是否为合法的 IP 格式
+    // net.ParseIP 会过滤掉所有非 IP 格式的恶意字符串
+    ip := net.ParseIP(ipStr)
+    if ip == nil {
+        return ""
+    }
+
+    return ip.String()
 }
 
 func Execute() error {
