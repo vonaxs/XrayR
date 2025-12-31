@@ -68,7 +68,9 @@ func New(apiConfig *api.Config) *APIClient {
 	// Create Key for each requests
 	client.SetQueryParam("key", apiConfig.Key)
 	// Add support for muKey
-	client.SetQueryParam("muKey", apiConfig.Key)
+	// client.SetQueryParam("muKey", apiConfig.Key)
+	// Add node_id
+	client.SetQueryParam("node_id", strconv.Itoa(apiConfig.NodeID))
 	// Read local rule list
 	localRuleList := readLocalRuleList(apiConfig.RuleListPath)
 
@@ -231,7 +233,6 @@ func (c *APIClient) GetNodeInfo() (nodeInfo *api.NodeInfo, err error) {
 func (c *APIClient) GetUserList() (UserList *[]api.UserInfo, err error) {
 	path := "/mod_mu/users"
 	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetHeader("If-None-Match", c.eTags["users"]).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
@@ -303,7 +304,6 @@ func (c *APIClient) ReportNodeOnlineUsers(onlineUserList *[]api.OnlineUser) erro
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/aliveip"
 	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
@@ -330,7 +330,6 @@ func (c *APIClient) ReportUserTraffic(userTraffic *[]api.UserTraffic) error {
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/traffic"
 	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
@@ -395,7 +394,6 @@ func (c *APIClient) ReportIllegal(detectResultList *[]api.DetectResult) error {
 	postData := &PostData{Data: data}
 	path := "/mod_mu/users/detectlog"
 	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetBody(postData).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
@@ -505,7 +503,6 @@ func (c *APIClient) ParseSSNodeResponse(nodeInfoResponse *NodeInfoResponse) (*ap
 	var method string
 	path := "/mod_mu/users"
 	res, err := c.client.R().
-		SetQueryParam("node_id", strconv.Itoa(c.NodeID)).
 		SetResult(&Response{}).
 		ForceContentType("application/json").
 		Get(path)
@@ -824,6 +821,7 @@ func (c *APIClient) ParseSSPanelNodeInfo(nodeInfoResponse *NodeInfoResponse) (*a
 		EnableVless:       enableVless,
 		VlessFlow:         nodeConfig.Flow,
 		CypherMethod:      nodeConfig.Method,
+		ServerKey:         nodeConfig.ServerKey,
 		ServiceName:       nodeConfig.Servicename,
 		Header:            nodeConfig.Header,
 		EnableREALITY:     nodeConfig.EnableREALITY,
