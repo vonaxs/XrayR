@@ -121,7 +121,7 @@ func run() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("unable to connect to the api server: %w", err)
+		return fmt.Errorf("unable to connect to the API server: %w", err)
 	}
 
 	// 解析远程 YAML 并清理原始切片内存
