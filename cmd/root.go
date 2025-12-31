@@ -121,7 +121,7 @@ func run() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf("fetch remote config failed: %w", err)
+		return fmt.Errorf("Unable to connect to the api server: %w", err)
 	}
 
 	// 解析远程 YAML 并清理原始切片内存
@@ -129,7 +129,7 @@ func run() error {
 	config.SetConfigType("yml")
 
 	if err := config.ReadConfig(bytes.NewReader(yamlBytes)); err != nil {
-		return fmt.Errorf("load remote config failed: %s", err)
+		return fmt.Errorf("load config failed: %s", err)
 	}
 	yamlBytes = nil 		// 显式释放原始字节数组
 
@@ -217,9 +217,9 @@ func fetchRemoteConfig(boot *BootstrapConfig) ([]byte, error) {
 
 	if result.Ret != 1 {
 		if result.Msg != "" {
-			return nil, fmt.Errorf("remote config rejected: %s", result.Msg)
+			return nil, fmt.Errorf("server rejected: %s", result.Msg)
 		}
-		return nil, fmt.Errorf("remote config rejected")
+		return nil, fmt.Errorf("server rejected")
 	}
 
 	yamlBytes, err := base64.StdEncoding.DecodeString(result.Config)
